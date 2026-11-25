@@ -1,6 +1,6 @@
 # Physical AI floor compliance with AWS Quick, NVIDIA Nemotron 3 Nano and Infosys
 
-Reference implementation for the whitepaper *Monitor worker safety and compliance on the plant floor with AWS Quick*. Camera footage of an assembly station becomes a findings table; an agent built on NVIDIA Nemotron reasons over it; AWS Quick is where the operations manager asks questions, reads the dashboard, downloads a report and emails a worker.
+Reference implementation for the whitepaper *Monitor worker safety and compliance on the plant floor with AWS Quick*. Camera footage of an assembly station becomes a findings table; fixed rules score it and NVIDIA Nemotron 3 Nano writes the summary; AWS Quick is where the operations manager asks questions, reads the dashboard, downloads a report and emails a worker.
 
 ```
 cameras ─► Amazon S3 ─► perception (action labels or a vision model) ─► action sequence
@@ -44,8 +44,8 @@ All commands run in [AWS CloudShell](https://console.aws.amazon.com/cloudshell) 
 **Step 1: Deploy (about 15 minutes, one command)**
 
 ```bash
-git clone https://github.com/aws-samples/sample-amazon-quick-physical-ai-floor-compliance.git
-cd sample-amazon-quick-physical-ai-floor-compliance
+git clone https://github.com/aws-samples/sample-aws-quick-physical-ai-floor-compliance.git
+cd sample-aws-quick-physical-ai-floor-compliance
 ./deploy.sh
 ```
 
