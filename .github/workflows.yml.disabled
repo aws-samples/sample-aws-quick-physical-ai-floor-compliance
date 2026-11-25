@@ -1,0 +1,13 @@
+# Rename to .github/workflows/ci.yml to run the suite on pull requests.
+name: ci
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r scripts/requirements.txt pytest cfn-lint
+      - run: LLM_ENABLED=false pytest -q
+      - run: cfn-lint cfn/floor-compliance.yaml

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor compliance: supervisor view</title>
+<style>
+  :root { --bg:#f5f6f7; --panel:#ffffff; --ink:#1b1f23; --muted:#5f6b76; --line:#d9dee3; --accent:#0d6efd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; font-weight:600; }
+  header .meta { color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns: 2fr 1fr; gap:16px; padding:16px 20px; height: calc(100vh - 58px); }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; display:flex; flex-direction:column; min-height:0; }
+  section h2 { font-size:14px; font-weight:600; margin:0; padding:10px 14px; border-bottom:1px solid var(--line); color:var(--muted); }
+  .slot { flex:1; min-height:0; }
+  .slot iframe { width:100%; height:100%; border:0; }
+  .placeholder { height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:24px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; height:auto; } section { height: 70vh; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Floor compliance: Line 1 supervisor view</h1>
+  <div class="meta">Stations ST-01 to ST-04 · data from the floor compliance agent · synthetic sample unless clips are loaded</div>
+</header>
+<main>
+  <section>
+    <h2>Compliance dashboard (Quick Sight)</h2>
+    <div class="slot">
+      <!-- DASHBOARD EMBED: replace this placeholder with the embed snippet from the dashboard's Share > Embed dialog -->
+      <div class="placeholder">Dashboard embed goes here.<br>See quick/embed-README.md.</div>
+    </div>
+  </section>
+  <section>
+    <h2>Ask the floor agent (AWS Quick chat)</h2>
+    <div class="slot">
+      <!-- CHAT EMBED: replace this placeholder with the embed snippet from the chat agent's Share > Embed dialog -->
+      <div class="placeholder">Chat agent embed goes here.<br>Try: "which stations had deviations in the last shift"</div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

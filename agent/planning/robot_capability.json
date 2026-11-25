@@ -1,0 +1,18 @@
+{
+  "placeholder": true,
+  "source": "PLACEHOLDER: replace with measured results from the Isaac Sim digital twin (VLA policy runs per step)",
+  "robot": "simulated collaborative arm",
+  "steps": {
+    "2": {"cycle_seconds": 20.0, "success_rate": 0.98, "note": "insert gear shaft"},
+    "4": {"cycle_seconds": 28.0, "success_rate": 0.96, "note": "fasten shaft nut, nut wrench"},
+    "6": {"cycle_seconds": 26.0, "success_rate": 0.95, "note": "fasten cylinder cap, hex key"},
+    "8": {"cycle_seconds": 24.0, "success_rate": 0.95, "note": "fasten cover screws, screwdriver"}
+  },
+  "scenarios": [
+    {"name": "Baseline: all human", "robot_steps": []},
+    {"name": "Robot fastens the shaft nut (step 4)", "robot_steps": [4]},
+    {"name": "Robot does all fastening (4, 6, 8)", "robot_steps": [4, 6, 8]},
+    {"name": "Robot does all fastening, overlapped", "robot_steps": [4, 6, 8], "parallel": true},
+    {"name": "Robot inserts the gear shaft (step 2)", "robot_steps": [2]}
+  ]
+}

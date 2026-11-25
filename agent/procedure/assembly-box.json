@@ -1,0 +1,35 @@
+{
+  "procedure_id": "assembly-box-v1",
+  "product": "Assembly box with three plates (general, gear, cylinder), modeled on the HA-ViD Generic Assembly Box",
+  "station_type": "manual-assembly",
+  "description": "Standard procedure for the reference build. ILLUSTRATIVE: the step list follows the three-plate structure of the HA-ViD Generic Assembly Box, but part and tool names here are generic. Reconcile verbs, parts and tools with the dataset's own label legend before measuring accuracy on HA-ViD. A plant writes its own file in this format; change steps, tools, targets and severities here, not in code.",
+  "steps": [
+    {"id": 1, "name": "Place base plate in the box frame",        "action": "place",   "object": "base_plate",    "target": "box_frame",      "tool": null,          "target_seconds": 8,  "required": true},
+    {"id": 2, "name": "Insert gear shaft into the gear plate",    "action": "insert",  "object": "gear_shaft",    "target": "gear_plate",     "tool": null,          "target_seconds": 6,  "required": true},
+    {"id": 3, "name": "Place large gear on the shaft",            "action": "place",   "object": "large_gear",    "target": "gear_shaft",     "tool": null,          "target_seconds": 12, "required": true},
+    {"id": 4, "name": "Fasten shaft nut",                         "action": "screw",   "object": "shaft_nut",     "target": "gear_shaft",     "tool": "nut_wrench",  "target_seconds": 20, "required": true},
+    {"id": 5, "name": "Insert cylinder base into cylinder plate", "action": "insert",  "object": "cylinder_base", "target": "cylinder_plate", "tool": null,          "target_seconds": 10, "required": true},
+    {"id": 6, "name": "Fasten cylinder cap",                      "action": "screw",   "object": "cylinder_cap",  "target": "cylinder_base",  "tool": "hex_key",     "target_seconds": 18, "required": true},
+    {"id": 7, "name": "Place cover plate on the general plate",   "action": "place",   "object": "cover_plate",   "target": "general_plate",  "tool": null,          "target_seconds": 10, "required": true},
+    {"id": 8, "name": "Fasten cover screws",                      "action": "screw",   "object": "cover_screw",   "target": "cover_plate",    "tool": "screwdriver", "target_seconds": 16, "required": true},
+    {"id": 9, "name": "Inspect the assembled box",                "action": "inspect", "object": "assembled_box", "target": null,             "tool": null,          "target_seconds": 6,  "required": true}
+  ],
+  "tools": ["screwdriver", "hex_key", "nut_wrench", "shaft_wrench"],
+  "actions": ["place", "insert", "screw", "inspect"],
+  "thresholds": {
+    "over_time_ratio": 1.5,
+    "posture_strain_score": 0.7,
+    "posture_strain_min_seconds": 5,
+    "fatigue_window_minutes": 60,
+    "fatigue_min_over_time_events": 3
+  },
+  "severity": {
+    "missed_step": "high",
+    "out_of_order": "medium",
+    "wrong_tool": "medium",
+    "over_time": "low",
+    "posture_strain": "medium",
+    "fatigue_indicator": "low"
+  },
+  "compliance": {"counts_against_score": ["high", "medium"]}
+}

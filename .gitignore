@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+floor-env.json
+data-local/
+.pytest_cache/

@@ -1,0 +1,377 @@
+{
+  "AwsAccountId": "<account-id>",
+  "DashboardId": "floor-compliance",
+  "Name": "Floor compliance",
+  "Definition": {
+    "DataSetIdentifierDeclarations": [
+      {
+        "Identifier": "findings",
+        "DataSetArn": "<findings-dataset-arn>"
+      },
+      {
+        "Identifier": "deviations",
+        "DataSetArn": "<deviations-dataset-arn>"
+      }
+    ],
+    "Sheets": [
+      {
+        "SheetId": "overview",
+        "Name": "Floor compliance",
+        "Visuals": [
+          {
+            "KPIVisual": {
+              "VisualId": "kpi_compliance",
+              "Title": {
+                "Visibility": "VISIBLE",
+                "FormatText": {
+                  "PlainText": "Compliance % (units with no high or medium deviation)"
+                }
+              },
+              "ChartConfiguration": {
+                "FieldWells": {
+                  "Values": [
+                    {
+                      "NumericalMeasureField": {
+                        "FieldId": "compliance_avg",
+                        "Column": {
+                          "DataSetIdentifier": "findings",
+                          "ColumnName": "compliant_pct"
+                        },
+                        "AggregationFunction": {
+                          "SimpleNumericalAggregation": "AVERAGE"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "BarChartVisual": {
+              "VisualId": "bar_station",
+              "Title": {
+                "Visibility": "VISIBLE",
+                "FormatText": {
+                  "PlainText": "Deviations by station and severity"
+                }
+              },
+              "ChartConfiguration": {
+                "FieldWells": {
+                  "BarChartAggregatedFieldWells": {
+                    "Category": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "station",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "station"
+                          }
+                        }
+                      }
+                    ],
+                    "Values": [
+                      {
+                        "CategoricalMeasureField": {
+                          "FieldId": "dev_count",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "deviation_id"
+                          },
+                          "AggregationFunction": "COUNT"
+                        }
+                      }
+                    ],
+                    "Colors": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "severity",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "severity"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "Orientation": "VERTICAL",
+                "BarsArrangement": "STACKED"
+              }
+            }
+          },
+          {
+            "BarChartVisual": {
+              "VisualId": "bar_type_shift",
+              "Title": {
+                "Visibility": "VISIBLE",
+                "FormatText": {
+                  "PlainText": "Deviations by type and shift"
+                }
+              },
+              "ChartConfiguration": {
+                "FieldWells": {
+                  "BarChartAggregatedFieldWells": {
+                    "Category": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "dtype",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "type"
+                          }
+                        }
+                      }
+                    ],
+                    "Values": [
+                      {
+                        "CategoricalMeasureField": {
+                          "FieldId": "dev_count2",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "deviation_id"
+                          },
+                          "AggregationFunction": "COUNT"
+                        }
+                      }
+                    ],
+                    "Colors": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "shift",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "shift"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "Orientation": "HORIZONTAL",
+                "BarsArrangement": "CLUSTERED"
+              }
+            }
+          },
+          {
+            "LineChartVisual": {
+              "VisualId": "line_trend",
+              "Title": {
+                "Visibility": "VISIBLE",
+                "FormatText": {
+                  "PlainText": "Deviations per day"
+                }
+              },
+              "ChartConfiguration": {
+                "FieldWells": {
+                  "LineChartAggregatedFieldWells": {
+                    "Category": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "date",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "date"
+                          }
+                        }
+                      }
+                    ],
+                    "Values": [
+                      {
+                        "CategoricalMeasureField": {
+                          "FieldId": "dev_count3",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "deviation_id"
+                          },
+                          "AggregationFunction": "COUNT"
+                        }
+                      }
+                    ],
+                    "Colors": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "severity2",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "severity"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "TableVisual": {
+              "VisualId": "tbl_deviations",
+              "Title": {
+                "Visibility": "VISIBLE",
+                "FormatText": {
+                  "PlainText": "Deviation log (newest first)"
+                }
+              },
+              "ChartConfiguration": {
+                "FieldWells": {
+                  "TableAggregatedFieldWells": {
+                    "GroupBy": [
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_ts",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "ts"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_station",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "station"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_worker",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "worker"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_type",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "type"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_sev",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "severity"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_step",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "step_name"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_detail",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "detail"
+                          }
+                        }
+                      },
+                      {
+                        "CategoricalDimensionField": {
+                          "FieldId": "t_id",
+                          "Column": {
+                            "DataSetIdentifier": "deviations",
+                            "ColumnName": "deviation_id"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "SortConfiguration": {
+                  "RowSort": [
+                    {
+                      "FieldSort": {
+                        "FieldId": "t_ts",
+                        "Direction": "DESC"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "Layouts": [
+          {
+            "Configuration": {
+              "GridLayout": {
+                "Elements": [
+                  {
+                    "ElementId": "kpi_compliance",
+                    "ElementType": "VISUAL",
+                    "ColumnIndex": 0,
+                    "ColumnSpan": 12,
+                    "RowIndex": 0,
+                    "RowSpan": 6
+                  },
+                  {
+                    "ElementId": "bar_station",
+                    "ElementType": "VISUAL",
+                    "ColumnIndex": 12,
+                    "ColumnSpan": 24,
+                    "RowIndex": 0,
+                    "RowSpan": 12
+                  },
+                  {
+                    "ElementId": "bar_type_shift",
+                    "ElementType": "VISUAL",
+                    "ColumnIndex": 0,
+                    "ColumnSpan": 12,
+                    "RowIndex": 6,
+                    "RowSpan": 6
+                  },
+                  {
+                    "ElementId": "line_trend",
+                    "ElementType": "VISUAL",
+                    "ColumnIndex": 0,
+                    "ColumnSpan": 36,
+                    "RowIndex": 12,
+                    "RowSpan": 9
+                  },
+                  {
+                    "ElementId": "tbl_deviations",
+                    "ElementType": "VISUAL",
+                    "ColumnIndex": 0,
+                    "ColumnSpan": 36,
+                    "RowIndex": 21,
+                    "RowSpan": 12
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "Permissions": [
+    {
+      "Principal": "<quicksight-user-arn>",
+      "Actions": [
+        "quicksight:DescribeDashboard",
+        "quicksight:ListDashboardVersions",
+        "quicksight:UpdateDashboardPermissions",
+        "quicksight:QueryDashboard",
+        "quicksight:UpdateDashboard",
+        "quicksight:DeleteDashboard",
+        "quicksight:DescribeDashboardPermissions",
+        "quicksight:UpdateDashboardPublishedVersion"
+      ]
+    }
+  ]
+}

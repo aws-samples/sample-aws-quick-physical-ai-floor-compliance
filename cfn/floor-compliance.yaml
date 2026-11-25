@@ -1,0 +1,487 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Physical AI floor compliance: findings bucket, Cognito OAuth for AWS Quick,
+  the floor compliance agent on Amazon Bedrock AgentCore Runtime (MCP, direct
+  code deployment from a zip in S3, no container), and the Glue and Athena
+  tables behind the Quick Sight dashboard. Deploy with ./deploy.sh, which runs
+  the two phases (create bucket, upload code, then add the runtime).
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: floor-compliance
+    AllowedPattern: "^[a-z][a-z0-9-]{2,30}$"
+    Description: Lowercase prefix for resource names.
+  CodeS3Key:
+    Type: String
+    Default: ""
+    Description: S3 key of the agent code zip in the findings bucket. Leave empty on the first deploy; deploy.sh fills it after uploading.
+  ModelId:
+    Type: String
+    Default: nvidia.nemotron-nano-3-30b
+    Description: Amazon Bedrock model id used for narratives (NVIDIA Nemotron). Enable model access in the Region first.
+  LlmEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set to false to run the agent without Bedrock calls (rules only).
+  ClipRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Days to keep raw camera clips under clips/ before S3 deletes them. Findings are kept.
+  AccessLogRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days to keep S3 server access logs for the findings bucket.
+  AgentRuntimeName:
+    Type: String
+    Default: floor_compliance_agent
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]{0,47}$"
+    Description: AgentCore Runtime name (letters, digits, underscores).
+
+Conditions:
+  HasCode: !Not [!Equals [!Ref CodeS3Key, ""]]
+
+Resources:
+  # ------------------------------------------------------------------ storage
+  FindingsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: findings-bucket/
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+            ExpiredObjectDeleteMarker: true
+          - Id: expire-raw-clips
+            Status: Enabled
+            Prefix: clips/
+            ExpirationInDays: !Ref ClipRetentionDays
+          - Id: expire-athena-results
+            Status: Enabled
+            Prefix: athena-results/
+            ExpirationInDays: 7
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 2
+
+  FindingsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FindingsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt FindingsBucket.Arn
+              - !Sub "${FindingsBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # Server access logs for the findings bucket. The log bucket records access to itself
+  # under its own prefix, so every bucket in the stack has access logging.
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+      LoggingConfiguration:
+        DestinationBucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+        LogFilePrefix: log-bucket/
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-access-logs
+            Status: Enabled
+            ExpirationInDays: !Ref AccessLogRetentionDays
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 2
+
+  AccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt AccessLogsBucket.Arn
+              - !Sub "${AccessLogsBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowS3ServerAccessLogs
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub "${AccessLogsBucket.Arn}/findings-bucket/*"
+              - !Sub "${AccessLogsBucket.Arn}/log-bucket/*"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+
+  # ------------------------------------------------------------------ OAuth for AWS Quick (service-to-service)
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${ProjectName}-agent-auth"
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub "${ProjectName}-${AWS::AccountId}"
+
+  AgentResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: floor-agent
+      Name: Floor compliance agent
+      Scopes:
+        - ScopeName: invoke
+          ScopeDescription: Invoke the floor compliance agent tools
+
+  QuickClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: AgentResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: amazon-quick-connector
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthScopes: [floor-agent/invoke]
+      SupportedIdentityProviders: [COGNITO]
+      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+
+  # Customer managed key for the connector secret, with yearly rotation.
+  SecretsKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: Encrypts the AWS Quick connector client credentials in Secrets Manager.
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+
+  SecretsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${ProjectName}-connector-secret"
+      TargetKeyId: !Ref SecretsKey
+
+  QuickClientSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      KmsKeyId: !Ref SecretsKey
+      Description: Client credentials AWS Quick uses to call the floor compliance agent (service-to-service OAuth).
+      SecretString: !Sub
+        - '{"client_id":"${ClientId}","client_secret":"${ClientSecret}","token_url":"https://${ProjectName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/token","scope":"floor-agent/invoke"}'
+        - ClientId: !Ref QuickClient
+          ClientSecret: !GetAtt QuickClient.ClientSecret
+
+  # ------------------------------------------------------------------ agent runtime
+  AgentRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-agentcore-runtime-${AWS::Region}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: bedrock-agentcore.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*"
+      Policies:
+        - PolicyName: runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/runtimes/*"
+              - Sid: LogsDescribe
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: "*"
+              - Sid: Tracing
+                Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: "*"
+              - Sid: Metrics
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
+              - Sid: WorkloadIdentity
+                Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetWorkloadAccessToken
+                  - bedrock-agentcore:GetWorkloadAccessTokenForJWT
+                  - bedrock-agentcore:GetWorkloadAccessTokenForUserId
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default"
+                  - !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/${AgentRuntimeName}-*"
+              - Sid: Nemotron
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/*"
+                  - !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*"
+              - Sid: Findings
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${FindingsBucket.Arn}/*"
+              - Sid: FindingsList
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt FindingsBucket.Arn
+
+  AgentRuntime:
+    Type: AWS::BedrockAgentCore::Runtime
+    Condition: HasCode
+    Properties:
+      AgentRuntimeName: !Ref AgentRuntimeName
+      Description: Floor compliance agent (MCP) for AWS Quick, NVIDIA Nemotron on Amazon Bedrock.
+      AgentRuntimeArtifact:
+        CodeConfiguration:
+          Code:
+            S3:
+              Bucket: !Ref FindingsBucket
+              Prefix: !Ref CodeS3Key
+          Runtime: PYTHON_3_12
+          EntryPoint:
+            - main.py
+      NetworkConfiguration:
+        NetworkMode: PUBLIC
+      ProtocolConfiguration: MCP
+      RoleArn: !GetAtt AgentRuntimeRole.Arn
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration"
+          AllowedClients:
+            - !Ref QuickClient
+      EnvironmentVariables:
+        FINDINGS_BUCKET: !Ref FindingsBucket
+        MODEL_ID: !Ref ModelId
+        LLM_ENABLED: !Ref LlmEnabled
+        AWS_REGION: !Ref AWS::Region
+        MCP_HOST: "0.0.0.0"
+
+  # ------------------------------------------------------------------ tables for Quick Sight (Athena)
+  FindingsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Join ["_", !Split ["-", !Sub "${ProjectName}"]]
+        Description: Floor compliance findings and deviations.
+
+  FindingsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref FindingsDatabase
+      TableInput:
+        Name: findings
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: csv
+          skip.header.line.count: "1"
+        StorageDescriptor:
+          Location: !Sub "s3://${FindingsBucket}/findings/"
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.serde2.OpenCSVSerde
+            Parameters:
+              separatorChar: ","
+              quoteChar: '"'
+              escapeChar: "\\"
+          Columns:
+            - { Name: unit_id, Type: string }
+            - { Name: station, Type: string }
+            - { Name: worker, Type: string }
+            - { Name: date, Type: string }
+            - { Name: shift, Type: string }
+            - { Name: start_ts, Type: string }
+            - { Name: end_ts, Type: string }
+            - { Name: cycle_seconds, Type: double }
+            - { Name: steps_matched, Type: int }
+            - { Name: steps_total, Type: int }
+            - { Name: deviation_count, Type: int }
+            - { Name: high_count, Type: int }
+            - { Name: medium_count, Type: int }
+            - { Name: low_count, Type: int }
+            - { Name: compliant, Type: string }
+            - { Name: procedure_id, Type: string }
+
+  DeviationsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref FindingsDatabase
+      TableInput:
+        Name: deviations
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: csv
+          skip.header.line.count: "1"
+        StorageDescriptor:
+          Location: !Sub "s3://${FindingsBucket}/deviations/"
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.serde2.OpenCSVSerde
+            Parameters:
+              separatorChar: ","
+              quoteChar: '"'
+              escapeChar: "\\"
+          Columns:
+            - { Name: deviation_id, Type: string }
+            - { Name: unit_id, Type: string }
+            - { Name: station, Type: string }
+            - { Name: worker, Type: string }
+            - { Name: date, Type: string }
+            - { Name: shift, Type: string }
+            - { Name: step_id, Type: string }
+            - { Name: step_name, Type: string }
+            - { Name: type, Type: string }
+            - { Name: severity, Type: string }
+            - { Name: detail, Type: string }
+            - { Name: observed_seconds, Type: string }
+            - { Name: target_seconds, Type: string }
+            - { Name: clip_ref, Type: string }
+            - { Name: ts, Type: string }
+
+  AthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: !Sub "${ProjectName}"
+      RecursiveDeleteOption: true
+      WorkGroupConfiguration:
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: false
+        ResultConfiguration:
+          OutputLocation: !Sub "s3://${FindingsBucket}/athena-results/"
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+
+Outputs:
+  BucketName:
+    Value: !Ref FindingsBucket
+  AccessLogsBucketName:
+    Value: !Ref AccessLogsBucket
+  UserPoolId:
+    Value: !Ref UserPool
+  QuickClientId:
+    Value: !Ref QuickClient
+  QuickClientSecretArn:
+    Description: Secrets Manager secret with client_id, client_secret, token_url and scope for the Quick connector.
+    Value: !Ref QuickClientSecret
+  TokenUrl:
+    Value: !Sub "https://${ProjectName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"
+  DiscoveryUrl:
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration"
+  AgentRuntimeArn:
+    Condition: HasCode
+    Value: !GetAtt AgentRuntime.AgentRuntimeArn
+  AgentRuntimeId:
+    Condition: HasCode
+    Value: !GetAtt AgentRuntime.AgentRuntimeId
+  GlueDatabase:
+    Value: !Ref FindingsDatabase
+  AthenaWorkGroup:
+    Value: !Ref AthenaWorkGroup

@@ -1,0 +1,249 @@
+{
+  "data_source": {
+    "AwsAccountId": "<account-id>",
+    "DataSourceId": "floor-compliance-athena",
+    "Name": "Floor compliance (Athena)",
+    "Type": "ATHENA",
+    "DataSourceParameters": {
+      "AthenaParameters": {
+        "WorkGroup": "<athena-workgroup>"
+      }
+    },
+    "Permissions": [
+      {
+        "Principal": "<quicksight-user-arn>",
+        "Actions": [
+          "quicksight:UpdateDataSourcePermissions",
+          "quicksight:DescribeDataSource",
+          "quicksight:DescribeDataSourcePermissions",
+          "quicksight:PassDataSource",
+          "quicksight:UpdateDataSource",
+          "quicksight:DeleteDataSource"
+        ]
+      }
+    ]
+  },
+  "findings": {
+    "AwsAccountId": "<account-id>",
+    "DataSetId": "floor-compliance-findings",
+    "Name": "Floor compliance: units",
+    "ImportMode": "DIRECT_QUERY",
+    "PhysicalTableMap": {
+      "findings": {
+        "RelationalTable": {
+          "DataSourceArn": "<athena-data-source-arn>",
+          "Catalog": "AwsDataCatalog",
+          "Schema": "<glue-database>",
+          "Name": "findings",
+          "InputColumns": [
+            {
+              "Name": "unit_id",
+              "Type": "STRING"
+            },
+            {
+              "Name": "station",
+              "Type": "STRING"
+            },
+            {
+              "Name": "worker",
+              "Type": "STRING"
+            },
+            {
+              "Name": "date",
+              "Type": "STRING"
+            },
+            {
+              "Name": "shift",
+              "Type": "STRING"
+            },
+            {
+              "Name": "start_ts",
+              "Type": "STRING"
+            },
+            {
+              "Name": "end_ts",
+              "Type": "STRING"
+            },
+            {
+              "Name": "cycle_seconds",
+              "Type": "DECIMAL"
+            },
+            {
+              "Name": "steps_matched",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "steps_total",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "deviation_count",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "high_count",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "medium_count",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "low_count",
+              "Type": "INTEGER"
+            },
+            {
+              "Name": "compliant",
+              "Type": "STRING"
+            },
+            {
+              "Name": "procedure_id",
+              "Type": "STRING"
+            }
+          ]
+        }
+      }
+    },
+    "LogicalTableMap": {
+      "findings-logical": {
+        "Alias": "findings",
+        "Source": {
+          "PhysicalTableId": "findings"
+        },
+        "DataTransforms": [
+          {
+            "CreateColumnsOperation": {
+              "Columns": [
+                {
+                  "ColumnName": "compliant_pct",
+                  "ColumnId": "compliant_pct",
+                  "Expression": "ifelse({compliant} = 'true', 100, 0)"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Permissions": [
+      {
+        "Principal": "<quicksight-user-arn>",
+        "Actions": [
+          "quicksight:UpdateDataSetPermissions",
+          "quicksight:DescribeDataSet",
+          "quicksight:DescribeDataSetPermissions",
+          "quicksight:PassDataSet",
+          "quicksight:DescribeIngestion",
+          "quicksight:ListIngestions",
+          "quicksight:UpdateDataSet",
+          "quicksight:DeleteDataSet",
+          "quicksight:CreateIngestion",
+          "quicksight:CancelIngestion"
+        ]
+      }
+    ]
+  },
+  "deviations": {
+    "AwsAccountId": "<account-id>",
+    "DataSetId": "floor-compliance-deviations",
+    "Name": "Floor compliance: deviations",
+    "ImportMode": "DIRECT_QUERY",
+    "PhysicalTableMap": {
+      "deviations": {
+        "RelationalTable": {
+          "DataSourceArn": "<athena-data-source-arn>",
+          "Catalog": "AwsDataCatalog",
+          "Schema": "<glue-database>",
+          "Name": "deviations",
+          "InputColumns": [
+            {
+              "Name": "deviation_id",
+              "Type": "STRING"
+            },
+            {
+              "Name": "unit_id",
+              "Type": "STRING"
+            },
+            {
+              "Name": "station",
+              "Type": "STRING"
+            },
+            {
+              "Name": "worker",
+              "Type": "STRING"
+            },
+            {
+              "Name": "date",
+              "Type": "STRING"
+            },
+            {
+              "Name": "shift",
+              "Type": "STRING"
+            },
+            {
+              "Name": "step_id",
+              "Type": "STRING"
+            },
+            {
+              "Name": "step_name",
+              "Type": "STRING"
+            },
+            {
+              "Name": "type",
+              "Type": "STRING"
+            },
+            {
+              "Name": "severity",
+              "Type": "STRING"
+            },
+            {
+              "Name": "detail",
+              "Type": "STRING"
+            },
+            {
+              "Name": "observed_seconds",
+              "Type": "STRING"
+            },
+            {
+              "Name": "target_seconds",
+              "Type": "STRING"
+            },
+            {
+              "Name": "clip_ref",
+              "Type": "STRING"
+            },
+            {
+              "Name": "ts",
+              "Type": "STRING"
+            }
+          ]
+        }
+      }
+    },
+    "LogicalTableMap": {
+      "deviations-logical": {
+        "Alias": "deviations",
+        "Source": {
+          "PhysicalTableId": "deviations"
+        }
+      }
+    },
+    "Permissions": [
+      {
+        "Principal": "<quicksight-user-arn>",
+        "Actions": [
+          "quicksight:UpdateDataSetPermissions",
+          "quicksight:DescribeDataSet",
+          "quicksight:DescribeDataSetPermissions",
+          "quicksight:PassDataSet",
+          "quicksight:DescribeIngestion",
+          "quicksight:ListIngestions",
+          "quicksight:UpdateDataSet",
+          "quicksight:DeleteDataSet",
+          "quicksight:CreateIngestion",
+          "quicksight:CancelIngestion"
+        ]
+      }
+    ]
+  }
+}
